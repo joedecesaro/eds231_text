@@ -1,0 +1,220 @@
+---
+title: "topic2_text_data_in_r"
+author: "Joe DeCesaro"
+date: "4/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(jsonlite) #convert results from API queries into R-friendly formats 
+library(tidyverse) 
+library(tidytext) #text data management and analysis
+library(ggplot2) #plot word frequencies and publication dates
+```
+
+```{r}
+#create an object called x with the results of our query ("haaland")
+# the from JSON flatten the JSON object, then convert to a data frame
+t <- fromJSON("http://api.nytimes.com/svc/search/v2/articlesearch.json?q=haaland&api-key=NTKBHbsb6XFEkGymGumAiba7n3uBvs8V", flatten = TRUE) #the string following "key=" is your API key 
+
+class(t) #what type of object is x?
+
+t <- t %>% 
+  data.frame()
+
+
+#Inspect our data
+class(t) #now what is it?
+dim(t) # how big is it?
+names(t) # what variables are we working with?
+#t <- readRDS("nytDat.rds") #in case of API emergency :)
+
+```
+
+
+```{r}
+t$response.docs.snippet[9]
+
+#assign a snippet to x to use as fodder for stringr functions.  You can follow along using the sentence on the next line.
+
+x <- "Her nomination as secretary of the interior is historic, but as the first Native cabinet member, she would have to strike a delicate balance." 
+
+tolower(x)
+str_split(x, ','); str_split(x, 't')
+str_replace(x, 'historic', 'without precedent')
+str_replace(x, ' ', '_') #first one
+#how do we replace all of them?
+
+str_detect(x, 't'); str_detect(x, 'tive') ### is pattern in the string? T/F
+str_locate(x, 't'); str_locate_all(x, 'as')
+```
+
+```{r}
+t$response.docs.snippet[9] # pulling out a sentence that is interesting, snippet = sentence in NYT
+
+#assign a snippet to x to use as fodder for stringr functions.  You can follow along using the sentence on the next line.
+
+x <- "Her nomination as secretary of the interior is historic, but as the first Native cabinet member, she would have to strike a delicate balance." 
+
+tolower(x)
+str_split(x, ',') # split x at the commas 
+str_split(x, 't') # split x at the letter t, note that you are removing the splitter
+str_replace(x, 'historic', 'without precedent') 
+str_replace(x, ' ', '_') #first one
+#how do we replace all of them?
+str_replace_all(x, ' ', '_') 
+
+str_detect(x, 't')
+str_detect(x, 'tive') ### is pattern in the string? T/F - T
+str_locate(x, 't'); str_locate_all(x, 'as')
+
+```
+
+## OK, it’s working but we want more data. Let’s set some parameters for a bigger query
+
+```{r}
+term <- "Haaland" # Need to use + to string together separate words
+begin_date <- "20210120" # inaguration
+end_date <- "20220401" # close to present
+
+#construct the query url using API operators
+baseurl <- paste0("http://api.nytimes.com/svc/search/v2/articlesearch.json?q=",term,
+                  "&begin_date=",begin_date,"&end_date=",end_date,
+                  "&facet_filter=true&api-key=","NTKBHbsb6XFEkGymGumAiba7n3uBvs8V", sep="")
+
+#examine our query url
+baseurl
+```
+
+```{r}
+#this code allows for obtaining multiple pages of query results 
+ initialQuery <- fromJSON(baseurl)
+maxPages <- round((initialQuery$response$meta$hits[1] / 10)-1) 
+
+pages <- list()
+for(i in 0:maxPages){
+  nytSearch <- fromJSON(paste0(baseurl, "&page=", i), flatten = TRUE) %>% data.frame() 
+  message("Retrieving page ", i)
+  pages[[i+1]] <- nytSearch 
+  Sys.sleep(6) 
+}
+class(nytSearch)
+
+#need to bind the pages and create a tibble from nytDa
+```
+
+
+```{r}
+nytDat <- read.csv("nytDat.csv") # obtained from 
+
+nytDat %>% 
+  group_by(response.docs.type_of_material) %>%
+  summarize(count=n()) %>%
+  mutate(percent = (count / sum(count))*100) %>%
+  ggplot() +
+  geom_bar(aes(y=percent, x=response.docs.type_of_material, fill=response.docs.type_of_material), stat = "identity") + coord_
+```
+
+```{r}
+nytDat %>%
+  mutate(pubDay=gsub("T.*","",response.docs.pub_date)) %>%
+  group_by(pubDay) %>%
+  summarise(count=n()) %>%
+  filter(count >= 2) %>%
+  ggplot() +
+  geom_bar(aes(x=reorder(pubDay, count), y=count), stat="identity") + coord_flip()
+
+```
+
+The New York Times doesn’t make full text of the articles available through the API. But we can use the first paragraph of each article.
+
+```{r}
+names(nytDat)
+```
+
+
+```{r}
+paragraph <- names(nytDat)[6] #The 6th column, "response.doc.lead_paragraph", is the one we want here.  
+tokenized <- nytDat %>%
+  unnest_tokens(word, paragraph)
+
+tokenized %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 5) %>% #illegible with all the words displayed
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) +
+  geom_col() +
+  labs(y = NULL)
+
+```
+
+Uh oh, who knows what we need to do here?
+
+```{r}
+data(stop_words)
+
+tokenized <- tokenized %>%
+  anti_join(stop_words)
+
+tokenized %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 5) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) +
+  geom_col() +
+  labs(y = NULL)
+```
+
+OK, but look at the most common words. Does one stick out?
+
+```{r}
+#inspect the list of tokens (words)
+tokenized$word
+
+clean_tokens <- str_replace_all(tokenized$word,"land[a-z,A-Z]*","land") #stem tribe words
+clean_tokens <- str_remove_all(clean_tokens, "[:digit:]") #remove all numbers
+clean_tokens <- str_remove_all(clean_tokens, "washington")
+clean_tokens <- gsub("’s", '', clean_tokens)
+
+tokenized$clean <- clean_tokens
+
+tokenized %>%
+  count(clean, sort = TRUE) %>%
+  filter(n > 10) %>% #illegible with all the words displayed
+  mutate(clean = reorder(clean, n)) %>%
+  ggplot(aes(n, clean)) +
+  geom_col() +
+  labs(y = NULL)
+
+#remove the empty strings
+tib <-subset(tokenized, clean!="")
+
+#reassign
+tokenized <- tib
+
+#try again
+tokenized %>%
+  count(clean, sort = TRUE) %>%
+  filter(n > 10) %>% #illegible with all the words displayed
+  mutate(clean = reorder(clean, n)) %>%
+  ggplot(aes(n, clean)) +
+  geom_col() +
+  labs(y = NULL)
+
+```
+
+# Assignment 1
+
+1) Create a free New York Times account (https://developer.nytimes.com/get-started)
+
+2) Pick an interesting environmental key word(s) and use the jsonlite package to query the API. Pick something high profile enough and over a large enough time frame that your query yields enough articles for an interesting examination.
+
+3) Recreate the publications per day and word frequency plots using the first paragraph
+
+- Make some (at least 3) transformations to the corpus (add stopword(s), stem a key term and its variants, remove numbers)
+
+4) Recreate the publications per day and word frequency plots using the headlines variable (response.docs.headline.main). Compare the distributions of word frequencies between the first paragraph and headlines. Do you see any difference?
