@@ -1,0 +1,258 @@
+---
+title: "week_2_lab"
+author: "Joe DeCesaro"
+date: "4/10/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(jsonlite) #convert results from API queries into R-friendly formats 
+library(tidyverse) 
+library(tidytext) #text data management and analysis
+library(ggplot2) #plot word frequencies and publication dates
+library(patchwork) # stitch plots together
+```
+
+# Query about renewable energy since 2021
+
+```{r}
+api_key <- "kx8lL2TlBIFIgBShOs1eFATbWPgHHWX2"
+term <- "renewable+energy" # Need to use + to string together separate words
+begin_date <- "20200101" # YYYYMMDD
+end_date <- "20220401" # close to present
+
+#construct the query url using API operators
+baseurl <- paste0("http://api.nytimes.com/svc/search/v2/articlesearch.json?q=",term,
+                  "&begin_date=",begin_date,
+                  "&end_date=",end_date,
+                  "&facet_filter=true&api-key=",api_key, 
+                  sep="")
+
+
+```
+
+After making our query we will use a for loop to retrieve the maximum number of information that we can.
+
+```{r}
+#this code allows for obtaining multiple pages of query results 
+initialQuery <- fromJSON(baseurl)
+
+maxPages <- round((initialQuery$response$meta$hits[1] / 10)-1) 
+
+# pages <- list()
+# for(i in 0:maxPages){
+#   nytSearch <- fromJSON(paste0(baseurl, "&page=", i), flatten = TRUE) %>% data.frame() 
+#   message("Retrieving page ", i)
+#   pages[[i+1]] <- nytSearch 
+#   Sys.sleep(6) # keeps you from hitting limit for AP
+# }
+# class(nytSearch)
+
+#need to bind the pages and create a tibble from nytDa
+# nytDat <- rbind_pages(pages) 
+# saveRDS(object = nytDat,
+#         file = "data/nytDat.RData") # save the file so don't have to query every time
+```
+
+Next, lets make a quick plot using ggplot to see what media types have the words "renewable+energy".
+
+```{r}
+nytDat <- readRDS(file = "data/nytDat.RData") # read in saved file
+
+nytDat %>% 
+  group_by(response.docs.type_of_material) %>%
+  summarize(count=n()) %>%
+  mutate(percent = (count / sum(count))*100) %>%
+  ggplot() +
+  geom_bar(aes(y=percent, 
+               x=response.docs.type_of_material, 
+               fill=response.docs.type_of_material), 
+           stat = "identity") + 
+  coord_flip() + 
+  labs(fill = "Media Types")
+```
+It looks like these are mostly news articles. Next lets see if the spread of publication dates is mostly even.
+
+```{r}
+# nytDat %>%
+#   mutate(pubDay=gsub("T.*","",response.docs.pub_date)) %>%
+#   group_by(pubDay) %>%
+#   summarise(count=n()) %>%
+#   filter(count >= 2) %>%
+#   ggplot() +
+#   geom_bar(aes(x=reorder(pubDay, 
+#                          count), 
+#                y=count), 
+#            stat="identity") + 
+#   coord_flip()
+
+```
+
+## Let's analyze the leading paragraphs
+
+The New York Times doesn’t make full text of the articles available through the API. But we can use the first paragraph of each article.
+
+```{r}
+# look at variable names
+names(nytDat)
+```
+
+For now, we want the 6th column, which is named "response.doc.lead_paragraph".
+
+```{r}
+paragraph <- names(nytDat)[6] #The 6th column, "response.doc.lead_paragraph", is the one we want here.  
+tokenized <- nytDat %>%
+  unnest_tokens(word, paragraph) #take paragraphs in and un-nest to word level (1 row for each word in paragraph)
+
+tokenized %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 5) %>% #illegible with all the words displayed
+  mutate(word = reorder(word, n)) %>%
+  slice(1:30) %>% 
+  ggplot(aes(n, word)) +
+  geom_col() +
+  labs(y = NULL,
+       x = "Word Count")
+
+```
+
+This is not very helpful as it contains a lot of stop words, lets clean it up.
+
+```{r}
+# 'tidytext' has a list of common stopwords in English
+data(stop_words) # pull stop_word data object from `tidytext` package
+
+tokenized <- tokenized %>%
+  anti_join(stop_words) # remove all rows that match a stopword
+
+tokenized %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 5) %>%
+  mutate(word = reorder(word, n)) %>%
+  slice(1:30) %>% 
+  ggplot(aes(n, word)) +
+  geom_col() +
+  labs(y = NULL,
+       x = "Word Count")
+```
+
+This is better but, lets work with it more to get more information out of the data. Lets start by making some words their stem, remove any numbers, and remove the word energy and renewable as we know that these articles discuss this topic.
+
+```{r}
+#inspect the list of tokens (words)
+# tokenized$word
+
+clean_tokens <- str_replace_all(string = tokenized$word,
+                                pattern = "energ[a-z,A-Z]*",
+                                replacement = "energy") #stem tribe words
+
+clean_tokens <- str_replace_all(string = tokenized$word,
+                                pattern = "renewable[a-z,A-Z]*",
+                                replacement = "renwable") #stem tribe words
+
+clean_tokens <- str_remove_all(string = clean_tokens, 
+                               pattern = "[:digit:]") #remove all numbers
+
+clean_tokens <- str_remove_all(string = clean_tokens, 
+                               pattern = "energy") # remove energy because it will show up a lot
+
+clean_tokens <- str_remove_all(string = clean_tokens, 
+                               pattern = "renewable") # remove renewable because it will show up a lot
+
+clean_tokens <- gsub(pattern = "’s", # remove "'s" and replace them with nothing
+                     replacement = '', 
+                     x = clean_tokens)
+
+tokenized$clean <- clean_tokens # put the cleaned tokens into the `tokenized` df `clean` column
+
+#remove the empty strings
+tib <-subset(tokenized, clean!="")
+
+#reassign
+tokenized <- tib
+
+paragraph_plot <- tokenized %>%
+  count(clean, sort = TRUE) %>%
+  filter(n > 20) %>% #illegible with all the words displayed
+  mutate(clean = reorder(clean, n)) %>% 
+  slice(1:30) %>% # get the top 30 words
+  ggplot(aes(n, clean)) +
+  geom_col() +
+  labs(y = NULL,
+       title = "Paragraphs")
+
+paragraph_plot
+```
+
+It appears that renewable energy is most frequently discussed in articles that talk about climate change, US politics, and non-renewable energy. We could remove a few more words but I think this is fine as it is.
+
+## Next let's look at the headlines and how they compare to the paragraphs
+
+```{r}
+headline <- names(nytDat)[21] #The 21st column, "response.docs.headline.main", is the one we want here.  
+tokenized <- nytDat %>%
+  unnest_tokens(word, headline) #take paragraphs in and un-nest to word level (1 row for each word in headline)
+
+tokenized <- tokenized %>%
+  anti_join(stop_words) # remove all rows that match a stopword
+
+clean_tokens <- str_replace_all(string = tokenized$word,
+                                pattern = "energ[a-z,A-Z]*",
+                                replacement = "energy") #stem tribe words
+
+clean_tokens <- str_replace_all(string = tokenized$word,
+                                pattern = "renewable[a-z,A-Z]*",
+                                replacement = "renwable") #stem tribe words
+
+clean_tokens <- str_replace_all(string = tokenized$word,
+                                pattern = "vot[a-z,A-Z]*",
+                                replacement = "vote") #stem tribe words
+
+clean_tokens <- str_remove_all(string = clean_tokens, 
+                               pattern = "[:digit:]") #remove all numbers
+
+clean_tokens <- str_remove_all(string = clean_tokens, 
+                               pattern = "energy") # remove energy because it will show up a lot
+
+clean_tokens <- str_remove_all(string = clean_tokens, 
+                               pattern = "renewable") # remove renewable because it will show up a lot
+
+clean_tokens <- gsub(pattern = "’s", # remove "'s" and replace them with nothing
+                     replacement = '', 
+                     x = clean_tokens)
+
+tokenized$clean <- clean_tokens # put the cleaned tokens into the `tokenized` df `clean` column
+
+#remove the empty strings
+tib <-subset(tokenized, clean!="")
+
+#reassign
+tokenized <- tib
+
+headline_plot <- tokenized %>%
+  count(clean, sort = TRUE) %>%
+  filter(n > 20) %>% #illegible with all the words displayed
+  mutate(clean = reorder(clean, n)) %>% 
+  slice(1:30) %>% # get the top 30 words
+  ggplot(aes(n, clean)) +
+  geom_col() +
+  labs(y = NULL,
+       title = "Headlines")
+
+headline_plot
+
+```
+
+It seems like there are a lot of shared words in the headlines and the paragraphs but lets look at them side by side.
+
+```{r}
+paragraph_plot + headline_plot
+```
+
+Overall there are a lot of shared words between the paragraphs and headlines including climate, change, Biden and more. There is a noticeable increase in words like vote, surveys, crisis, and other.
