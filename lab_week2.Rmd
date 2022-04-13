@@ -77,22 +77,28 @@ nytDat %>%
   coord_flip() + 
   labs(fill = "Media Types")
 ```
+
 It looks like these are mostly news articles. Next lets see if the spread of publication dates is mostly even.
 
 ```{r}
-# nytDat %>%
-#   mutate(pubDay=gsub("T.*","",response.docs.pub_date)) %>%
-#   group_by(pubDay) %>%
-#   summarise(count=n()) %>%
-#   filter(count >= 2) %>%
-#   ggplot() +
-#   geom_bar(aes(x=reorder(pubDay, 
-#                          count), 
-#                y=count), 
-#            stat="identity") + 
-#   coord_flip()
+para_pubdate <- nytDat %>%
+  mutate(pubDay=gsub("T.*","",response.docs.pub_date)) %>%
+  group_by(pubDay) %>%
+  summarise(count=n()) %>%
+  filter(count >= 2) %>%
+  slice(1:20) %>% 
+  ggplot() +
+  geom_bar(aes(x=reorder(pubDay,
+                         count),
+               y=count),
+           stat="identity") +
+  coord_flip() +
+  labs(title = "Pub Date")
 
+para_pubdate
 ```
+
+There seems to be a lot of articles published in April and May of 2020, maybe this occurred when the Biden Administrations Build Back Better initiative was up for voting.
 
 ## Let's analyze the leading paragraphs
 
@@ -235,6 +241,22 @@ tib <-subset(tokenized, clean!="")
 #reassign
 tokenized <- tib
 
+head_pubdate <- nytDat %>%
+  mutate(pubDay=gsub("T.*","",response.docs.pub_date)) %>%
+  group_by(pubDay) %>%
+  summarise(count=n()) %>%
+  filter(count >= 2) %>%
+  slice(1:20) %>% 
+  ggplot() +
+  geom_bar(aes(x=reorder(pubDay,
+                         count),
+               y=count),
+           stat="identity") +
+  coord_flip() +
+  labs(title = "Pub Date")
+
+head_pubdate
+
 headline_plot <- tokenized %>%
   count(clean, sort = TRUE) %>%
   filter(n > 20) %>% #illegible with all the words displayed
@@ -249,10 +271,11 @@ headline_plot
 
 ```
 
-It seems like there are a lot of shared words in the headlines and the paragraphs but lets look at them side by side.
+The publication dates for the headlines is the same as before. It seems like there are a lot of shared words in the headlines and the paragraphs but lets look at them side by side. The 
 
 ```{r}
 paragraph_plot + headline_plot
 ```
 
 Overall there are a lot of shared words between the paragraphs and headlines including climate, change, Biden and more. There is a noticeable increase in words like vote, surveys, crisis, and other.
+
