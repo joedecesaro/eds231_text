@@ -132,7 +132,6 @@ nrc_word_counts <- text_words %>%
   ungroup()
 ```
 
-
 Let's break it out and plot the contributions by particular words different sentiment categories
 ```{r sent_counts}
 book_sent_counts <- text_words %>%
