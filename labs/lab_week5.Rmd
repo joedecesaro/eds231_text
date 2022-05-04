@@ -35,8 +35,9 @@ library(here)
 
 ```
 
-#import EPA EJ Data
+# Import EPA EJ Data
 
+## Setup
 ```{r pdf_import}
 files <- list.files(path = here("data/"),
                     pattern = "EPA*",
@@ -60,7 +61,7 @@ stop_vec <- as_vector(add_stops)
 
 ```
 
-Now we'll create some different data objects that will set us up for the subsequent analyses
+\noindent Now we'll create some different data objects that will set us up for the subsequent analyses
 
 ```{r tidy}
 
@@ -92,7 +93,6 @@ par_words <- unnest_tokens(par_tokens, output = word, input = paragraphs, token 
 
 
 ```{r corr_paragraphs}
-
 word_cors <- par_words %>% 
   add_count(par_id) %>% 
   filter(n >= 50) %>% 
@@ -100,8 +100,6 @@ word_cors <- par_words %>%
   pairwise_cor(word, par_id, sort = TRUE)
 
 ```
-
-Not surprisingly, the correlation between "environmental" and "justice" is by far the highest, which makes sense given the nature of these reports. How might we visualize these correlations to develop of sense of the context in which justice is discussed here?
 
 
 ```{r quanteda_init}
@@ -117,8 +115,6 @@ head(tstat_freq, 10)
 
 ```
 
-Another useful word relationship concept is that of the n-gram, which essentially means tokenizing at the multi-word level. uni-gram vs. n-gram
-
 ```{r convert_dfm}
 toks2 <- tokens_ngrams(toks1, n=2)
 dfm2 <- dfm(toks2)
@@ -128,9 +124,9 @@ freq_words2$token <- rep("bigram", 20)
 #tokens1 <- tokens_select(tokens1,pattern = stopwords("en"), selection = "remove")
 ```
 
-Assignment
+## Assignment
 
-1.  What are the most frequent trigrams in the dataset? How does this compare to the most frequent bigrams? Which n-gram seems more informative here, and why?
+### 1.  What are the most frequent trigrams in the dataset? How does this compare to the most frequent bigrams? Which n-gram seems more informative here, and why?
 
 ```{r}
 toks3 <- tokens_ngrams(toks1, n=3)
@@ -151,7 +147,7 @@ head(freq_words3)
 
 \noindent The trigram most frequent "features" seem to mostly be official names of reports and does not seem to tell us anything more interesting about the documents than the bigrams. I think the bigrams are a more useful tool.
 
-2.  Choose a new focal term to replace "justice" and recreate the correlation table and network (see corr_paragraphs and corr_network chunks). Explore some of the plotting parameters in the cor_network chunk to see if you can improve the clarity or amount of information your plot conveys. Make sure to use a different color for the ties!
+### 2.  Choose a new focal term to replace "justice" and recreate the correlation table and network (see corr_paragraphs and corr_network chunks). Explore some of the plotting parameters in the cor_network chunk to see if you can improve the clarity or amount of information your plot conveys. Make sure to use a different color for the ties!
 
 ```{r}
 just_cors <- word_cors %>% 
@@ -195,7 +191,9 @@ indigenous_cors  %>%
   theme_void()
 ```
 
-3.  Write a function that allows you to conduct a keyness analysis to compare two individual EPA reports (hint: that means target and reference need to both be individual reports). Run the function on 3 pairs of reports, generating 3 keyness plots.
+\newpage
+
+### 3.  Write a function that allows you to conduct a keyness analysis to compare two individual EPA reports (hint: that means target and reference need to both be individual reports). Run the function on 3 pairs of reports, generating 3 keyness plots.
 
 ```{r}
 
@@ -240,6 +238,7 @@ key_func <- function(target_rep, reference_rep){
 }
 ```
 
+\newpage
 ```{r}
 keyness1 <- key_func(target_rep = here("data", "EPAEJ_2016.pdf"),
                      reference_rep = here("data", "EPAEJ_2017.pdf"))
@@ -247,6 +246,7 @@ keyness1 <- key_func(target_rep = here("data", "EPAEJ_2016.pdf"),
 textplot_keyness(keyness1)
 ```
 
+\newpage
 ```{r}
 keyness2 <- key_func(target_rep = here("data", "EPAEJ_2016.pdf"),
                      reference_rep = here("data", "EPAEJ_2019.pdf"))
@@ -254,6 +254,7 @@ keyness2 <- key_func(target_rep = here("data", "EPAEJ_2016.pdf"),
 textplot_keyness(keyness2)
 ```
 
+\newpage
 ```{r}
 keyness3 <- key_func(target_rep = here("data", "EPAEJ_2016.pdf"),
                      reference_rep = here("data", "EPAEJ_2020.pdf"))
@@ -261,7 +262,9 @@ keyness3 <- key_func(target_rep = here("data", "EPAEJ_2016.pdf"),
 textplot_keyness(keyness3)
 ```
 
-4.  Select a word or multi-word term of interest and identify words related to it using windowing and keyness comparison. To do this you will create two objects: one containing all words occurring within a 10-word window of your term of interest, and the second object containing all other words. Then run a keyness comparison on these objects. Which one is the target, and which the reference? [Hint](https://tutorials.quanteda.io/advanced-operations/target-word-collocations/)
+\newpage
+
+### 4.  Select a word or multi-word term of interest and identify words related to it using windowing and keyness comparison. To do this you will create two objects: one containing all words occurring within a 10-word window of your term of interest, and the second object containing all other words. Then run a keyness comparison on these objects. Which one is the target, and which the reference? [Hint](https://tutorials.quanteda.io/advanced-operations/target-word-collocations/)
 
 ```{r}
 indigenous <- c("indigenous", "indigenous peoples", "peoples")
