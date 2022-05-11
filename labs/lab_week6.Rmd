@@ -1,6 +1,10 @@
 ---
 title: 'Topic 6: Topic Analysis'
-output: pdf_document
+author: "Joe DeCesaro"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -105,6 +109,7 @@ top_terms <- comment_topics %>%
   top_n(10, beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
+top_terms
 
 top_terms %>%
   mutate(term = reorder(term, beta)) %>%
@@ -118,22 +123,6 @@ top_terms %>%
 ```{r }
 top5termsPerTopic <- terms(topicModel_k10, 5)
 topicNames_k10 <- apply(top5termsPerTopic, 2, paste, collapse=" ")
-```
-
-```{r }
-exampleIds <- c(1, 2, 3, 4, 5, 6)
-N <- length(exampleIds)
-
-#lapply(epa_corp[exampleIds], as.character) #uncomment to view example text
-# get topic proportions form example documents
-topicProportions <- theta[exampleIds,]
-colnames(topicProportions) <- topicNames_k10
-vizDataFrame <- melt(cbind(data.frame(topicProportions), document=factor(1:N)), variable.name = "topic", id.vars = "document")  
-ggplot(data = vizDataFrame, aes(topic, value, fill = document), ylab = "proportion") +
-  geom_bar(stat="identity") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +  
-  coord_flip() +
-  facet_wrap(~ document, ncol = N)
 ```
 
 ### Model 2 (k = 5)
@@ -160,6 +149,7 @@ top_terms <- comment_topics %>%
   top_n(10, beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
+top_terms
 
 top_terms %>%
   mutate(term = reorder(term, beta)) %>%
@@ -168,25 +158,6 @@ top_terms %>%
   facet_wrap(~ topic, scales = "free") +
   coord_flip()
 
-```
-
-```{r}
-top5termsPerTopic <- terms(topicModel_k5, 5)
-topicNames_k5 <- apply(top5termsPerTopic, 2, paste, collapse=" ")
-
-exampleIds <- c(1, 2, 3, 4, 5, 6)
-N <- length(exampleIds)
-
-#lapply(epa_corp[exampleIds], as.character) #uncomment to view example text
-# get topic proportions form example documents
-topicProportions <- theta[exampleIds,]
-colnames(topicProportions) <- topicNames_k5
-vizDataFrame <- melt(cbind(data.frame(topicProportions), document=factor(1:N)), variable.name = "topic", id.vars = "document")  
-ggplot(data = vizDataFrame, aes(topic, value, fill = document), ylab = "proportion") +
-  geom_bar(stat="identity") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +  
-  coord_flip() +
-  facet_wrap(~ document, ncol = N)
 ```
 
 ### Model 3 (k = 14)
@@ -213,6 +184,7 @@ top_terms <- comment_topics %>%
   top_n(10, beta) %>%
   ungroup() %>%
   arrange(topic, -beta)
+top_terms 
 
 top_terms %>%
   mutate(term = reorder(term, beta)) %>%
@@ -223,24 +195,8 @@ top_terms %>%
 
 ```
 
-```{r}
-top5termsPerTopic <- terms(topicModel_k14, 5)
-topicNames_k14 <- apply(top5termsPerTopic, 2, paste, collapse=" ")
-
-exampleIds <- c(1, 2, 3, 4, 5, 6)
-N <- length(exampleIds)
-
-#lapply(epa_corp[exampleIds], as.character) #uncomment to view example text
-# get topic proportions form example documents
-topicProportions <- theta[exampleIds,]
-colnames(topicProportions) <- topicNames_k14
-vizDataFrame <- melt(cbind(data.frame(topicProportions), document=factor(1:N)), variable.name = "topic", id.vars = "document")  
-ggplot(data = vizDataFrame, aes(topic, value, fill = document), ylab = "proportion") +
-  geom_bar(stat="identity") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +  
-  coord_flip() +
-  facet_wrap(~ document, ncol = N)
-```
-
 ### Best k-value
 
+The Deveaud method shows noticeable spikes at 5, 10, and 14 topics so I chose to explore these beyond the 7 and 9 topics we did in class. I based my choices on the Deveaud method because it does not just improve with the more topics you choose. 
+
+The model where k=14 seems to be over fit as there are low beta values and multiple overlapping top words like communiti and state. For k=5 4/5 of the topics have the top word as communiti with low distinctiveness. When k=10 there is still low beta values however there only 4/10 categories have the same top word. To me this seems to mean we get more distinctive groups without spliting things up too much so I would go with k=10 as the best metric of the three k values I chose.
